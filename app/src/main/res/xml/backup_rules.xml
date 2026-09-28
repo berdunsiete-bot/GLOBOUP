@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Include only game preferences, avoiding any sensitive storage leaks -->
+    <include domain="sharedpref" path="globoup_prefs.xml"/>
+</full-backup-content>

@@ -1,0 +1,6 @@
+{
+  "name": "Globoup",
+  "description": "Juego arcade donde guías un globo aerostático esquivando tormentas con rayos y recolectando estrellas para conseguir la máxima puntuación.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
