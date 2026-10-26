@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">GloboUp</string>
+    <string name="points">Pontos</string>
+    <string name="record">Recorde</string>
+    <string name="electric_strike">Raio elétrico</string>
+    <string name="revive_with_shield">Renascer com escudo</string>
+    <string name="play_again">Jogar novamente</string>
+    <string name="advertisement">Anúncio</string>
+</resources>

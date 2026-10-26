@@ -12,7 +12,13 @@ class GamePreferences(context: Context) {
         private const val KEY_SOUND_ENABLED = "sound_enabled"
         private const val KEY_HAPTICS_ENABLED = "haptics_enabled"
         private const val KEY_GAMES_PLAYED = "games_played"
+        private const val KEY_LANGUAGE = "app_language"
+        private const val KEY_SHIELDS_COUNT = "shields_count"
     }
+
+    var shieldsCount: Int
+        get() = prefs.getInt(KEY_SHIELDS_COUNT, 0)
+        set(value) = prefs.edit().putInt(KEY_SHIELDS_COUNT, value).apply()
 
     var highScore: Int
         get() = prefs.getInt(KEY_HIGH_SCORE, 0)
@@ -33,6 +39,10 @@ class GamePreferences(context: Context) {
     var gamesPlayed: Int
         get() = prefs.getInt(KEY_GAMES_PLAYED, 0)
         set(value) = prefs.edit().putInt(KEY_GAMES_PLAYED, value).apply()
+
+    var languageSetting: String
+        get() = prefs.getString(KEY_LANGUAGE, "auto") ?: "auto"
+        set(value) = prefs.edit().putString(KEY_LANGUAGE, value).apply()
 
     fun resetStats() {
         prefs.edit()

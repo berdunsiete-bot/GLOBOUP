@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
@@ -53,6 +54,9 @@ fun GloboUpCanvas(
     bgClouds: List<BackgroundCloud>,
     particles: List<SparkleParticle>,
     floatingTexts: List<FloatingText>,
+    hasShield: Boolean = false,
+    isShieldActive: Boolean = hasShield,
+    isShieldFlickering: Boolean = false,
     onDrag: (deltaX: Float, deltaY: Float, widthPx: Float, heightPx: Float) -> Unit,
     onTap: (xNorm: Float, yNorm: Float) -> Unit,
     modifier: Modifier = Modifier
@@ -62,13 +66,21 @@ fun GloboUpCanvas(
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    onDrag(dragAmount.x, dragAmount.y, size.width.toFloat(), size.height.toFloat())
+                    // Prevenir toques accidentales en la zona superior (HUD) o inferior (Banner AdMob)
+                    val yRatio = change.position.y / size.height
+                    if (yRatio in GloboUpViewModel.GAMEPLAY_TOP_LIMIT..GloboUpViewModel.GAMEPLAY_BOTTOM_LIMIT) {
+                        change.consume()
+                        onDrag(dragAmount.x, dragAmount.y, size.width.toFloat(), size.height.toFloat())
+                    }
                 }
             }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
-                    onTap(offset.x / size.width, offset.y / size.height)
+                    val yNorm = offset.y / size.height
+                    // Solo registrar toques en el área jugable válida sin tocar el banner inferior
+                    if (yNorm in GloboUpViewModel.GAMEPLAY_TOP_LIMIT..GloboUpViewModel.GAMEPLAY_BOTTOM_LIMIT) {
+                        onTap(offset.x / size.width, yNorm)
+                    }
                 }
             }
     ) {
@@ -94,44 +106,103 @@ fun GloboUpCanvas(
             )
         }
 
-        // 3. Falling Golden Stars
-        for (star in stars) {
-            val starPxX = star.x * width
-            val starPxY = star.y * height
-            val starRadiusPx = star.radius * width
+        // 3. Falling Golden Stars (Aparición suave delimitada debajo del banner superior)
+        clipRect(
+            left = 0f,
+            top = GloboUpViewModel.GAMEPLAY_TOP_LIMIT * height,
+            right = width,
+            bottom = GloboUpViewModel.GAMEPLAY_BOTTOM_LIMIT * height
+        ) {
+            for (star in stars) {
+                if (star.y + star.radius >= GloboUpViewModel.GAMEPLAY_TOP_LIMIT) {
+                    val starPxX = star.x * width
+                    val starPxY = star.y * height
+                    val starRadiusPx = star.radius * width
 
-            drawStarCollectible(
-                centerX = starPxX,
-                centerY = starPxY,
-                outerRadius = starRadiusPx,
-                rotationDegrees = star.rotation
-            )
+                    drawStarCollectible(
+                        centerX = starPxX,
+                        centerY = starPxY,
+                        outerRadius = starRadiusPx,
+                        rotationDegrees = star.rotation,
+                        alpha = star.starAlpha,
+                        scaleMultiplier = star.scaleMultiplier
+                    )
+                }
+            }
         }
 
-        // 4. Falling Storm Clouds with Lightning Bolts
-        for (cloud in clouds) {
-            val cloudPxX = cloud.x * width
-            val cloudPxY = cloud.y * height
-            val cloudRadXPx = cloud.radiusX * width
-            val cloudRadYPx = cloud.radiusY * height
+        // 4. Falling Storm Clouds with Lightning Bolts (Estrictamente delimitadas entre HUD y banner inferior)
+        clipRect(
+            left = 0f,
+            top = GloboUpViewModel.GAMEPLAY_TOP_LIMIT * height,
+            right = width,
+            bottom = GloboUpViewModel.GAMEPLAY_BOTTOM_LIMIT * height
+        ) {
+            for (cloud in clouds) {
+                if (cloud.y + cloud.radiusY >= GloboUpViewModel.GAMEPLAY_TOP_LIMIT) {
+                    val cloudPxX = cloud.x * width
+                    val cloudPxY = cloud.y * height
+                    val cloudRadXPx = cloud.radiusX * width
+                    val cloudRadYPx = cloud.radiusY * height
 
-            drawStormCloudWithLightning(
-                centerX = cloudPxX,
-                centerY = cloudPxY,
-                radiusX = cloudRadXPx,
-                radiusY = cloudRadYPx,
-                lightningLengthPx = cloud.lightningLength * height,
-                lightningPoints = cloud.lightningPoints,
-                lightningAlpha = cloud.lightningAlpha,
-                width = width,
-                height = height
-            )
+                    drawStormCloudWithLightning(
+                        centerX = cloudPxX,
+                        centerY = cloudPxY,
+                        radiusX = cloudRadXPx,
+                        radiusY = cloudRadYPx,
+                        lightningLengthPx = cloud.lightningLength * height,
+                        lightningPoints = cloud.lightningPoints,
+                        lightningAlpha = cloud.lightningAlpha,
+                        cloudAlpha = cloud.cloudAlpha,
+                        scaleMultiplier = cloud.scaleMultiplier,
+                        width = width,
+                        height = height
+                    )
+                }
+            }
         }
 
-        // 5. Hot Air Balloon (Player)
+        // 5. Hot Air Balloon (Player) & SÚPER ESCUDO AZUL CIAN NEÓN (#00FFFF)
         val balloonPxX = balloonX * width
         val balloonPxY = balloonY * height
         val balloonScale = width * 0.16f
+
+        val shieldActive = isShieldActive || hasShield
+        if (shieldActive) {
+            // Parpadeo rápido (flicker) en el último segundo (segundo 4.0 a 5.0)
+            val flickerAlpha = if (isShieldFlickering && ((System.currentTimeMillis() / 90) % 2 == 0L)) 0.25f else 1.0f
+
+            // 1. Resplandor radial exterior Cian Neón (#00FFFF)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0x9900FFFF).copy(alpha = 0.65f * flickerAlpha),
+                        Color(0x4400E5FF).copy(alpha = 0.35f * flickerAlpha),
+                        Color(0x0000FFFF)
+                    ),
+                    center = Offset(balloonPxX, balloonPxY),
+                    radius = balloonScale * 1.62f
+                ),
+                radius = balloonScale * 1.62f,
+                center = Offset(balloonPxX, balloonPxY)
+            )
+
+            // 2. Anillo de fuerza interior Cian Neón brillante
+            drawCircle(
+                color = Color(0xFF00FFFF).copy(alpha = 0.95f * flickerAlpha),
+                radius = balloonScale * 1.45f,
+                center = Offset(balloonPxX, balloonPxY),
+                style = Stroke(width = 5.5f)
+            )
+
+            // 3. Anillo de energía exterior eléctrico
+            drawCircle(
+                color = Color(0xFF80D8FF).copy(alpha = 0.70f * flickerAlpha),
+                radius = balloonScale * 1.58f,
+                center = Offset(balloonPxX, balloonPxY),
+                style = Stroke(width = 2.5f)
+            )
+        }
 
         drawHotAirBalloon(
             centerX = balloonPxX,
@@ -189,89 +260,111 @@ private fun DrawScope.drawStormCloudWithLightning(
     lightningLengthPx: Float,
     lightningPoints: List<Pair<Float, Float>>,
     lightningAlpha: Float,
+    cloudAlpha: Float = 1f,
+    scaleMultiplier: Float = 1f,
     width: Float,
     height: Float
 ) {
-    // 1. Draw Jagged Lightning Bolt protruding from bottom of cloud
-    val lightningOriginX = centerX
-    val lightningOriginY = centerY + radiusY * 0.4f
+    if (cloudAlpha <= 0.02f) return
 
-    val boltPath = Path().apply {
-        moveTo(lightningOriginX, lightningOriginY)
-        if (lightningPoints.isNotEmpty()) {
-            for (pt in lightningPoints) {
-                lineTo(lightningOriginX + pt.first * width, lightningOriginY + pt.second * height)
+    val effRadiusX = radiusX * scaleMultiplier
+    val effRadiusY = radiusY * scaleMultiplier
+    val effLightningLength = lightningLengthPx * scaleMultiplier
+
+    // 1. Draw Jagged Lightning Bolt protruding from bottom of cloud (solo si está formada)
+    if (lightningAlpha > 0.05f) {
+        val lightningOriginX = centerX
+        val lightningOriginY = centerY + effRadiusY * 0.4f
+
+        val boltPath = Path().apply {
+            moveTo(lightningOriginX, lightningOriginY)
+            if (lightningPoints.isNotEmpty()) {
+                for (pt in lightningPoints) {
+                    lineTo(lightningOriginX + pt.first * width * scaleMultiplier, lightningOriginY + pt.second * height * scaleMultiplier)
+                }
+            } else {
+                // Default lightning zigzag
+                lineTo(lightningOriginX - 10f * scaleMultiplier, lightningOriginY + effLightningLength * 0.35f)
+                lineTo(lightningOriginX + 8f * scaleMultiplier, lightningOriginY + effLightningLength * 0.65f)
+                lineTo(lightningOriginX - 4f * scaleMultiplier, lightningOriginY + effLightningLength)
             }
-        } else {
-            // Default lightning zigzag
-            lineTo(lightningOriginX - 10f, lightningOriginY + lightningLengthPx * 0.35f)
-            lineTo(lightningOriginX + 8f, lightningOriginY + lightningLengthPx * 0.65f)
-            lineTo(lightningOriginX - 4f, lightningOriginY + lightningLengthPx)
         }
+
+        // Glow effect for lightning
+        drawPath(
+            path = boltPath,
+            color = LightningGlow.copy(alpha = 0.5f * lightningAlpha * cloudAlpha),
+            style = Stroke(width = 14f * scaleMultiplier, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        // Crisp inner lightning bolt
+        drawPath(
+            path = boltPath,
+            color = LightningYellow.copy(alpha = lightningAlpha * cloudAlpha),
+            style = Stroke(width = 6f * scaleMultiplier, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        // Lightning tip spark
+        val tipOffset = if (lightningPoints.isNotEmpty()) {
+            val last = lightningPoints.last()
+            Offset(lightningOriginX + last.first * width * scaleMultiplier, lightningOriginY + last.second * height * scaleMultiplier)
+        } else {
+            Offset(lightningOriginX - 4f * scaleMultiplier, lightningOriginY + effLightningLength)
+        }
+        drawCircle(
+            color = LightningYellow.copy(alpha = lightningAlpha * cloudAlpha),
+            radius = 5f * scaleMultiplier,
+            center = tipOffset
+        )
     }
 
-    // Glow effect for lightning
-    drawPath(
-        path = boltPath,
-        color = LightningGlow.copy(alpha = 0.5f * lightningAlpha),
-        style = Stroke(width = 14f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-    )
-
-    // Crisp inner lightning bolt
-    drawPath(
-        path = boltPath,
-        color = LightningYellow.copy(alpha = lightningAlpha),
-        style = Stroke(width = 6f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-    )
-
-    // Lightning tip spark
-    val tipOffset = if (lightningPoints.isNotEmpty()) {
-        val last = lightningPoints.last()
-        Offset(lightningOriginX + last.first * width, lightningOriginY + last.second * height)
-    } else {
-        Offset(lightningOriginX - 4f, lightningOriginY + lightningLengthPx)
+    // 2. Transición Natural de Condensación: Bruma sutil al nacer
+    if (cloudAlpha < 0.95f) {
+        drawCircle(
+            color = Color(0x33455A64).copy(alpha = (0.22f * cloudAlpha)),
+            radius = effRadiusX * 1.25f,
+            center = Offset(centerX, centerY)
+        )
     }
-    drawCircle(
-        color = LightningYellow.copy(alpha = lightningAlpha),
-        radius = 5f,
-        center = tipOffset
-    )
 
-    // 2. Draw Storm Cloud Body (Dark slate gray puffs)
+    // 3. Draw Storm Cloud Body con opacidad de transición suave
+    val cMain = StormCloudColor.copy(alpha = (1.0f * cloudAlpha).coerceIn(0f, 1f))
+    val cDark = StormCloudDark.copy(alpha = (1.0f * cloudAlpha).coerceIn(0f, 1f))
+
     // Center puff
     drawCircle(
-        color = StormCloudColor,
-        radius = radiusX * 0.92f,
+        color = cMain,
+        radius = effRadiusX * 0.92f,
         center = Offset(centerX, centerY)
     )
     // Left puff
     drawCircle(
-        color = StormCloudDark,
-        radius = radiusX * 0.76f,
-        center = Offset(centerX - radiusX * 0.62f, centerY + radiusY * 0.15f)
+        color = cDark,
+        radius = effRadiusX * 0.76f,
+        center = Offset(centerX - effRadiusX * 0.62f, centerY + effRadiusY * 0.15f)
     )
     // Right puff
     drawCircle(
-        color = StormCloudColor,
-        radius = radiusX * 0.80f,
-        center = Offset(centerX + radiusX * 0.60f, centerY + radiusY * 0.12f)
+        color = cMain,
+        radius = effRadiusX * 0.80f,
+        center = Offset(centerX + effRadiusX * 0.60f, centerY + effRadiusY * 0.12f)
     )
     // Bottom flatter puff
     drawCircle(
-        color = StormCloudDark,
-        radius = radiusX * 0.70f,
-        center = Offset(centerX, centerY + radiusY * 0.35f)
+        color = cDark,
+        radius = effRadiusX * 0.70f,
+        center = Offset(centerX, centerY + effRadiusY * 0.35f)
     )
 
     // Subtle edge highlight on top of cloud
     drawArc(
-        color = Color(0x33FFFFFF),
+        color = Color(0x33FFFFFF).copy(alpha = (0.22f * cloudAlpha)),
         startAngle = 190f,
         sweepAngle = 160f,
         useCenter = false,
-        topLeft = Offset(centerX - radiusX * 0.90f, centerY - radiusX * 0.90f),
-        size = Size(radiusX * 1.8f, radiusX * 1.8f),
-        style = Stroke(width = 4f)
+        topLeft = Offset(centerX - effRadiusX * 0.90f, centerY - effRadiusX * 0.90f),
+        size = Size(effRadiusX * 1.8f, effRadiusX * 1.8f),
+        style = Stroke(width = 4f * scaleMultiplier)
     )
 }
 
@@ -279,23 +372,28 @@ private fun DrawScope.drawStarCollectible(
     centerX: Float,
     centerY: Float,
     outerRadius: Float,
-    rotationDegrees: Float
+    rotationDegrees: Float,
+    alpha: Float = 1f,
+    scaleMultiplier: Float = 1f
 ) {
-    // Soft outer golden halo glow
+    val effOuterRadius = outerRadius * scaleMultiplier
+    val effAlpha = alpha.coerceIn(0f, 1f)
+
+    // Soft outer golden halo glow con opacidad gradual
     drawCircle(
-        color = StarGoldGlow,
-        radius = outerRadius * 1.7f,
+        color = StarGoldGlow.copy(alpha = (StarGoldGlow.alpha * effAlpha)),
+        radius = effOuterRadius * 1.7f,
         center = Offset(centerX, centerY)
     )
 
     rotate(rotationDegrees, pivot = Offset(centerX, centerY)) {
         val path = Path()
-        val innerRadius = outerRadius * 0.44f
+        val innerRadius = effOuterRadius * 0.44f
         val points = 5
         val step = PI / points
 
         for (i in 0 until 2 * points) {
-            val r = if (i % 2 == 0) outerRadius else innerRadius
+            val r = if (i % 2 == 0) effOuterRadius else innerRadius
             val angle = i * step - (PI / 2.0)
             val px = (centerX + r * cos(angle)).toFloat()
             val py = (centerY + r * sin(angle)).toFloat()
@@ -306,15 +404,15 @@ private fun DrawScope.drawStarCollectible(
         // Draw solid gold star
         drawPath(
             path = path,
-            color = StarGold,
+            color = StarGold.copy(alpha = effAlpha),
             style = Fill
         )
 
         // Draw star stroke for crispness
         drawPath(
             path = path,
-            color = Color(0xFFFFF176),
-            style = Stroke(width = 2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            color = Color(0xFFFFF176).copy(alpha = effAlpha),
+            style = Stroke(width = 2.5f * scaleMultiplier, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
     }
 }

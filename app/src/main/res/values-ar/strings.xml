@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">غلوبوب</string>
+    <string name="points">نقاط</string>
+    <string name="record">رقم قياسي</string>
+    <string name="electric_strike">صاعقة كهربائية</string>
+    <string name="revive_with_shield">إحياء بالدرع</string>
+    <string name="play_again">اللعب مجددًا</string>
+    <string name="advertisement">إعلان</string>
+</resources>

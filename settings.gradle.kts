@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Globoup"
+rootProject.name = "GloboUp"
 
 include(":app")

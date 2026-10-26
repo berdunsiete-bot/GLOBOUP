@@ -31,21 +31,53 @@ class SoundAndHaptics(private val context: Context) {
     var soundEnabled: Boolean = true
     var hapticsEnabled: Boolean = true
 
-    fun playStarSound() {
+    /**
+     * Sonido gratificante con tono ascendente al recoger estrellas consecutivas (Combo).
+     */
+    fun playStarSound(consecutiveCombo: Int = 1) {
         if (!soundEnabled) return
         soundScope.launch {
             try {
-                // Bright sweet chime (ascending frequencies 880Hz to 1320Hz)
                 val sampleRate = 22050
-                val durationMs = 110
+                val durationMs = 120
+                val numSamples = (durationMs * sampleRate) / 1000
+                val buffer = ShortArray(numSamples)
+
+                // Frecuencia base que escala con el combo (880Hz + escalón armónico de 65Hz)
+                val baseFreq = 880.0 + (consecutiveCombo.coerceIn(1, 8) - 1) * 68.0
+
+                for (i in 0 until numSamples) {
+                    val progress = i.toFloat() / numSamples
+                    val freq = baseFreq + progress * 420.0
+                    val envelope = (1.0 - progress) * sin(progress * PI)
+                    val sample = (sin(2.0 * PI * i * freq / sampleRate) * envelope * Short.MAX_VALUE * 0.45).toInt()
+                    buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                }
+
+                playPcm(buffer, sampleRate)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /**
+     * Sonido de impacto energético y salto cuántico (Teletransporte / Modo Fantasma).
+     */
+    fun playQuantumJumpSound() {
+        if (!soundEnabled) return
+        soundScope.launch {
+            try {
+                val sampleRate = 22050
+                val durationMs = 240
                 val numSamples = (durationMs * sampleRate) / 1000
                 val buffer = ShortArray(numSamples)
 
                 for (i in 0 until numSamples) {
                     val progress = i.toFloat() / numSamples
-                    val freq = 880.0 + progress * 550.0
-                    val envelope = (1.0 - progress) * sin(progress * PI)
-                    val sample = (sin(2.0 * PI * i * freq / sampleRate) * envelope * Short.MAX_VALUE * 0.45).toInt()
+                    // Pitch warp ascendente y resonancia cian
+                    val freq = 450.0 + sin(progress * PI) * 600.0
+                    val envelope = sin(progress * PI) * (1.0 - progress * 0.4)
+                    val sample = (sin(2.0 * PI * i * freq / sampleRate) * envelope * Short.MAX_VALUE * 0.50).toInt()
                     buffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                 }
 
@@ -148,14 +180,35 @@ class SoundAndHaptics(private val context: Context) {
         }
     }
 
+    /**
+     * Micro-vibración háptica ultra-corta (18ms) al recolectar una estrella.
+     */
     fun vibrateStarCollect() {
         if (!hapticsEnabled || vibrator == null || !vibrator.hasVibrator()) return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(25, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(VibrationEffect.createOneShot(18, 140))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(25)
+                vibrator.vibrate(18)
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * Vibración firme y energética al activar la Onda Expansiva / Teletransporte de Seguridad.
+     */
+    fun vibrateFirmBurst() {
+        if (!hapticsEnabled || vibrator == null || !vibrator.hasVibrator()) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val timings = longArrayOf(0, 45, 30, 75)
+                val amplitudes = intArrayOf(0, 220, 0, 255)
+                vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(100)
             }
         } catch (_: Exception) {
         }

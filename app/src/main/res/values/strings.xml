@@ -1,3 +1,9 @@
 <resources>
-    <string name="app_name">Globoup</string>
+    <string name="app_name">GloboUp</string>
+    <string name="points">Score</string>
+    <string name="record">High Score</string>
+    <string name="electric_strike">Electric Strike</string>
+    <string name="revive_with_shield">Revive with Shield</string>
+    <string name="play_again">Play Again</string>
+    <string name="advertisement">Advertisement</string>
 </resources>
